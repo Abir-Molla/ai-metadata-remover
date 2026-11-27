@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "hero-eyebrow-chip",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-11-27T08:08:02.741Z",
+        "reason": "abirmolla.com DESIGN-SPEC section 3b requires small mono-caps eyebrows (code blue on navy) above section and hero titles; this page follows that brand rule"
+      }
+    ]
+  }
+}
