@@ -55,12 +55,20 @@
     <section class="tool" id="tool" aria-label="Metadata remover">
       <div class="container">
         <div class="card tool__card">
-          <label class="drop" id="drop" for="file-input">
-            <input id="file-input" type="file" accept="image/*,.heic,.heif,.avif" multiple>
-            <svg class="drop__icon" viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="9" width="36" height="30" rx="5"/><circle cx="17" cy="19" r="3.5"/><path d="m8 35 10-10 7 7 5-5 10 10"/></svg>
-            <span class="drop__title">Drop images here or <u>choose files</u></span>
-            <span class="drop__hint">JPG, PNG, WebP, HEIC, AVIF, GIF and more. You can also paste an image with Ctrl+V or ⌘V.</span>
-          </label>
+          <div class="drop" id="drop">
+            <input id="file-input" type="file" accept="image/*,.heic,.heif,.avif" multiple tabindex="-1" aria-hidden="true">
+            <span class="drop__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 15V4M7 8.5 12 4l5 4.5M5 19.5h14"/></svg>
+            </span>
+            <span class="drop__title">Drag your images here, or click to choose them</span>
+            <span class="drop__hint">JPG, PNG, WebP, HEIC, AVIF, GIF and more.</span>
+            <div class="drop__actions">
+              <button class="btn btn--primary" type="button" id="choose">Choose images</button>
+              <button class="btn btn--secondary" type="button" id="paste">Paste image</button>
+            </div>
+            <span class="drop__keys">or press <kbd id="paste-key">Ctrl+V</kbd> to paste an image</span>
+            <p class="drop__status" id="paste-status" role="status" aria-live="polite"></p>
+          </div>
 
           <fieldset class="settings">
             <legend class="settings__legend">Output</legend>
@@ -98,7 +106,13 @@
           </fieldset>
 
           <div class="tool__options">
-            <label class="check"><input type="checkbox" id="rename"> Rename to image-001, image-002…</label>
+            <label class="names" for="name-mode">New file names
+              <select id="name-mode">
+                <option value="original">photo.jpg (same name)</option>
+                <option value="clean">photo-clean.jpg</option>
+                <option value="numbered">image-001.jpg</option>
+              </select>
+            </label>
             <span class="tool__private">Your images never leave this device.</span>
           </div>
 

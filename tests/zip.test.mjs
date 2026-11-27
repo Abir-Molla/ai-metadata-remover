@@ -31,15 +31,22 @@ test('createZip makes a valid archive', () => {
 
 test('outputNames keeps names, swaps extension, and avoids duplicates', () => {
   assert.deepEqual(
-    outputNames([{ name: 'ChatGPT Image.png', ext: 'png' }, { name: 'ChatGPT Image.PNG', ext: 'png' }, { name: 'photo.heic', ext: 'jpg' }], false),
+    outputNames([{ name: 'ChatGPT Image.png', ext: 'png' }, { name: 'ChatGPT Image.PNG', ext: 'png' }, { name: 'photo.heic', ext: 'jpg' }], 'original'),
     ['ChatGPT Image.png', 'ChatGPT Image-2.png', 'photo.jpg'],
   );
 });
 
 test('outputNames renames to image-001 style', () => {
-  assert.deepEqual(outputNames([{ name: 'a.jpg', ext: 'jpg' }, { name: 'b.webp', ext: 'webp' }], true), ['image-001.jpg', 'image-002.webp']);
+  assert.deepEqual(outputNames([{ name: 'a.jpg', ext: 'jpg' }, { name: 'b.webp', ext: 'webp' }], 'numbered'), ['image-001.jpg', 'image-002.webp']);
 });
 
 test('outputNames strips unsafe characters', () => {
-  assert.deepEqual(outputNames([{ name: '../evil:name?.jpg', ext: 'jpg' }], false), ['..-evil-name-.jpg']);
+  assert.deepEqual(outputNames([{ name: '../evil:name?.jpg', ext: 'jpg' }], 'original'), ['..-evil-name-.jpg']);
+});
+
+test('outputNames can add -clean to the name', () => {
+  assert.deepEqual(
+    outputNames([{ name: 'photo.jpg', ext: 'jpg' }, { name: 'photo.png', ext: 'webp' }], 'clean'),
+    ['photo-clean.jpg', 'photo-clean.webp'],
+  );
 });

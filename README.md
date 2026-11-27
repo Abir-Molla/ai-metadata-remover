@@ -14,7 +14,7 @@ A free, private tool by [Abir Molla](https://abirmolla.com) that finds and remov
 - **Checks** each output by scanning it again and marks it "Clean".
 - **Warns** when a photo carries its GPS location, camera model or date.
 - **Resizes and converts** (optional): JPG, PNG or WebP output, preset or custom max size, quality slider. Settings are remembered.
-- Bulk upload, drag and drop or paste, one-click ZIP download, optional rename to `image-001`.
+- Bulk upload: drag and drop, "Choose images", a "Paste image" button or ⌘V / Ctrl+V. One-click ZIP download. File names: same name, `photo-clean.jpg` or `image-001.jpg`.
 
 Other formats (HEIC, AVIF, GIF, BMP) are opened by the browser and saved as a new PNG or JPG, which drops all metadata.
 

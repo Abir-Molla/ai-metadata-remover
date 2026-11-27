@@ -3,6 +3,7 @@ import { scanImage, cleanImage, isClean, detectFormat } from './core.js';
 import { createZip } from './zip.js';
 import { outputNames } from './names.js';
 import { fitSize, planOutput } from './convert.js';
+import { clipboardImages } from './clipboard.js';
 
 const $ = (id) => document.getElementById(id);
 const results = $('results');
@@ -55,7 +56,7 @@ function syncSettingsUi() {
 }
 
 function saveSettings() {
-  try { localStorage.setItem('output', JSON.stringify({ f: fmtSel.value, s: sizeSel.value, c: customInput.value, q: qualityInput.value })); } catch { /* ignore */ }
+  try { localStorage.setItem('output', JSON.stringify({ f: fmtSel.value, s: sizeSel.value, c: customInput.value, q: qualityInput.value, n: $('name-mode').value })); } catch { /* ignore */ }
 }
 
 function loadSettings() {
@@ -66,6 +67,7 @@ function loadSettings() {
     if ([...sizeSel.options].some((x) => x.value === o.s)) sizeSel.value = o.s;
     if (o.c) customInput.value = o.c;
     if (o.q) qualityInput.value = o.q;
+    if (['original', 'clean', 'numbered'].includes(o.n)) $('name-mode').value = o.n;
   } catch { /* ignore */ }
 }
 
@@ -216,7 +218,7 @@ function ready() {
 /** Map item -> output name, based on the rename option and the current order. */
 function currentNames() {
   const list = ready();
-  const names = outputNames(list.map((i) => ({ name: i.file.name, ext: i.ext })), $('rename').checked);
+  const names = outputNames(list.map((i) => ({ name: i.file.name, ext: i.ext })), $('name-mode').value);
   return new Map(list.map((i, k) => [i, names[k]]));
 }
 
@@ -265,6 +267,7 @@ function queueItem(item) {
 function addFiles(fileList) {
   const files = [...fileList];
   if (!files.length) return;
+  $('paste-status').textContent = '';
   for (const file of files) {
     const item = { file, row: el('li', 'row') };
     items.push(item);
@@ -289,6 +292,31 @@ function reprocessAll() {
 const drop = $('drop');
 const input = $('file-input');
 input.addEventListener('change', () => { addFiles(input.files); input.value = ''; });
+$('choose').addEventListener('click', () => input.click());
+drop.addEventListener('click', (e) => { if (!e.target.closest('button')) input.click(); });
+
+const isMac = /mac|iphone|ipad/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent);
+const pasteKey = isMac ? '⌘V' : 'Ctrl+V';
+$('paste-key').textContent = pasteKey;
+
+$('paste').addEventListener('click', async () => {
+  const status = $('paste-status');
+  status.textContent = '';
+  if (!navigator.clipboard?.read) {
+    status.textContent = `This browser can't paste from a button. Press ${pasteKey} instead.`;
+    return;
+  }
+  try {
+    const files = await clipboardImages(await navigator.clipboard.read());
+    if (files.length) addFiles(files);
+    else status.textContent = 'No image on your clipboard. Copy an image first, then try again.';
+  } catch (e) {
+    status.textContent = e && e.name === 'NotAllowedError'
+      ? `Paste was blocked. Allow clipboard access, or press ${pasteKey}.`
+      : `Could not read the clipboard. Press ${pasteKey} instead.`;
+  }
+});
+$('name-mode').addEventListener('change', saveSettings);
 
 let dragDepth = 0;
 window.addEventListener('dragenter', (e) => { if (e.dataTransfer?.types.includes('Files')) { dragDepth++; drop.classList.add('is-over'); } });
