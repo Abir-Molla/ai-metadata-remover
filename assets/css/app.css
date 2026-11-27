@@ -127,7 +127,7 @@ a:hover { text-decoration-thickness: 2px; }
 .drop__hint { max-width: 520px; font-size: 14px; line-height: 1.5; color: var(--muted); }
 .drop__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 12px; }
 .drop__keys { font-size: 14px; color: var(--muted); }
-kbd { display: inline-block; min-width: 28px; margin: 0 2px; padding: 1px 8px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: var(--raised); font: 500 12.5px/1.6 var(--font-mono); color: var(--text); }
+kbd { display: inline-block; min-width: 28px; margin: 0 2px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--raised); font: 500 12.5px/1.6 var(--font-mono); color: var(--text); }
 .drop__status { font-size: 14px; font-weight: 500; color: var(--text); }
 .drop__status:empty { display: none; }
 .tool__options { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; font-size: 15px; }
