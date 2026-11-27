@@ -1,0 +1,37 @@
+<img src="favicon.svg" width="72" alt="">
+
+# AI Metadata Remover
+
+A free, private tool by [Abir Molla](https://abirmolla.com) that finds and removes AI metadata from images, in bulk. Everything runs in your browser. Nothing is uploaded.
+
+**Live:** https://abir-molla.github.io/ai-metadata-remover/
+
+## What it does
+
+- **Finds** AI signals and shows the exact text: C2PA / Content Credentials, IPTC "made by AI" tags, ChatGPT / DALL-E, Midjourney, Adobe Firefly, Google Gemini / Imagen, Stable Diffusion and ComfyUI prompts, and more.
+- **Removes** EXIF (including GPS), XMP, IPTC / Photoshop blocks, C2PA / JUMBF, PNG text chunks, comments and data after the end of the image.
+- **Keeps** the image data byte for byte. JPG, PNG and WebP are never re-encoded. The colour profile and photo rotation are kept.
+- **Checks** each output by scanning it again and marks it "Clean".
+- Bulk upload, one-click ZIP download, optional rename to `image-001`.
+
+Other formats (HEIC, AVIF, GIF, BMP) are opened by the browser and saved as a new PNG or JPG, which drops all metadata.
+
+Invisible pixel watermarks (like Google's SynthID) are not metadata, so no metadata remover can take them out.
+
+## Development
+
+No build step and no dependencies. Serve the folder with any static server and run the tests with Node 20+:
+
+```bash
+npm test
+```
+
+`src/core.js` holds the scanner and cleaner (pure functions on `Uint8Array`), `src/zip.js` the ZIP writer, `src/app.js` the page logic. `tests/real.test.mjs` uses `ffmpeg` and `cwebp` when installed to check that cleaned images decode to identical pixels.
+
+## Publish
+
+GitHub Pages: Settings → Pages → Deploy from a branch → `main` / root.
+
+## License
+
+MIT © 2026 Abir Molla

@@ -83,9 +83,9 @@ function parseJpeg(b) {
   const parts = [];
   let i = 2;
   for (;;) {
+    while (i < b.length && b[i] !== 0xff) i++; // stray padding some encoders leave between segments
     while (b[i] === 0xff && b[i + 1] === 0xff) i++; // fill bytes
     if (i + 1 >= b.length) throw JPEG_ERR('file is cut off');
-    if (b[i] !== 0xff) throw JPEG_ERR('unexpected data between segments');
     const m = b[i + 1];
     if (m === 0xd9) return { parts, end: i + 2 };
     if (m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { parts.push({ marker: m, start: i, end: i + 2 }); i += 2; continue; }

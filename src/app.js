@@ -147,7 +147,8 @@ function renderRow(item) {
     const names = currentNames();
     save(item.out, names.get(item), item.mime);
   });
-  row.append(thumb, main, btn);
+  row.append(thumb, main);
+  if (!item.error) row.append(btn); // nothing to download for a failed file
 }
 
 function ready() {

@@ -53,6 +53,14 @@ test('broken JPEGs throw clear errors', () => {
   assert.throws(() => cleanImage(concat([0xff, 0xd8], jseg(0xe1, 'Exif'), [0x00, 0x01])), /JPEG/);
 });
 
+test('stray padding bytes between segments are skipped, not kept', () => {
+  const full = jpegFixture();
+  const at = indexOf(full, ICC_SEG);
+  const padded = concat(full.subarray(0, at), [0, 0, 0], full.subarray(at));
+  const { bytes: out } = cleanImage(padded);
+  assert.deepEqual(out, cleanImage(full).bytes);
+});
+
 test('unknown formats are refused by cleanImage', () => {
   assert.throws(() => cleanImage(bytes('GIF89a')), /Unsupported format/);
 });
