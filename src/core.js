@@ -7,7 +7,7 @@
 const SIGNALS = [
   ['C2PA / Content Credentials', /c2pa|contentauth|content credentials/i],
   ['IPTC: made by AI', /trainedAlgorithmicMedia|algorithmicMedia|compositeSynthetic/i],
-  ['OpenAI / ChatGPT / DALL-E', /openai|chatgpt|dall[\s·._-]?e\b|gpt-?4o|gpt-image|\bsora\b/i],
+  ['OpenAI / ChatGPT / DALL-E', /openai|chatgpt|dall(?:[\s._-]|\u00c2?\u00b7)?e\b|gpt-?4o|gpt-image|\bsora\b/i],
   ['Midjourney', /midjourney/i],
   ['Adobe Firefly', /firefly/i],
   ['Google Gemini / Imagen', /gemini|\bimagen\b|made with google ai|nano[\s-]?banana|synthid/i],
@@ -20,15 +20,15 @@ const SIGNALS = [
 const MAX_SCAN = 4 * 1024 * 1024; // decode at most 4 MB of one block as text
 const latin1 = new TextDecoder('latin1');
 
-/** Text view of metadata bytes. The second copy drops NUL bytes so UTF-16 text is readable too. */
-function toText(b) {
-  const t = latin1.decode(b.length > MAX_SCAN ? b.subarray(0, MAX_SCAN) : b);
-  return t + '\n' + t.replace(/\0/g, '');
-}
+const PRINTABLE = /[\t\x20-\x7e\u00a0-\u024f]/;
 
+/** The readable text run around a match, at most 120 characters. */
 function snippet(text, index, length) {
-  const raw = text.slice(Math.max(0, index - 40), index + length + 60);
-  return raw.replace(/[^\x20-\x7e -ɏ·]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+  let s = index;
+  let e = index + length;
+  while (s > 0 && index - s < 40 && PRINTABLE.test(text[s - 1])) s--;
+  while (e < text.length && e - index - length < 70 && PRINTABLE.test(text[e])) e++;
+  return text.slice(s, e).replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
 /** AI signals found in text, one entry per label: {label, evidence}. */
@@ -43,6 +43,14 @@ export function findSignals(text) {
 
 function addSignals(list, more) {
   for (const s of more) if (!list.some((x) => x.label === s.label)) list.push(s);
+}
+
+/** AI signals in metadata bytes. Also reads the text with NUL bytes dropped, so UTF-16 text is found. */
+function signalsIn(b) {
+  const text = latin1.decode(b.length > MAX_SCAN ? b.subarray(0, MAX_SCAN) : b);
+  const out = findSignals(text);
+  if (text.includes('\0')) addSignals(out, findSignals(text.replace(/\0/g, '')));
+  return out;
 }
 
 /* ---------------- format detection ---------------- */
@@ -180,11 +188,11 @@ function scanJpeg(b) {
     const c = classifyJpeg(b, part);
     if (!c) continue;
     blocks.push({ kind: c.kind, bytes: part.end - part.start, removable: c.removable });
-    if (c.removable) addSignals(signals, findSignals(toText(b.subarray(part.payload, part.end))));
+    if (c.removable) addSignals(signals, signalsIn(b.subarray(part.payload, part.end)));
   }
   if (end < b.length) {
     blocks.push({ kind: 'Data after image end', bytes: b.length - end, removable: true });
-    addSignals(signals, findSignals(toText(b.subarray(end))));
+    addSignals(signals, signalsIn(b.subarray(end)));
   }
   return { format: 'jpeg', signals, blocks };
 }
@@ -267,15 +275,14 @@ function scanPng(b) {
       continue;
     }
     blocks.push({ kind: cl.kind, bytes: c.end - c.start, removable: true });
-    const text = toText(b.subarray(c.data, c.dataEnd));
-    addSignals(signals, findSignals(text));
+    addSignals(signals, signalsIn(b.subarray(c.data, c.dataEnd)));
     // Compressed text hides the prompt, but the keyword alone gives these tools away.
-    if (cl.key === 'parameters') addSignals(signals, [{ label: 'Stable Diffusion', evidence: snippet(text, 0, 0) }]);
-    if (cl.key === 'prompt' || cl.key === 'workflow') addSignals(signals, [{ label: 'ComfyUI', evidence: snippet(text, 0, 0) }]);
+    if (cl.key === 'parameters') addSignals(signals, [{ label: 'Stable Diffusion', evidence: 'PNG text named "parameters"' }]);
+    if (cl.key === 'prompt' || cl.key === 'workflow') addSignals(signals, [{ label: 'ComfyUI', evidence: `PNG text named "${cl.key}"` }]);
   }
   if (end < b.length) {
     blocks.push({ kind: 'Data after image end', bytes: b.length - end, removable: true });
-    addSignals(signals, findSignals(toText(b.subarray(end))));
+    addSignals(signals, signalsIn(b.subarray(end)));
   }
   return { format: 'png', signals, blocks };
 }
@@ -327,11 +334,11 @@ function scanWebp(b) {
   for (const c of chunks) {
     const cl = classifyWebp(c);
     if (cl.removable || c.type === 'ICCP') blocks.push({ kind: cl.kind, bytes: c.end - c.start, removable: cl.removable });
-    if (cl.removable) addSignals(signals, findSignals(toText(b.subarray(c.data, c.dataEnd))));
+    if (cl.removable) addSignals(signals, signalsIn(b.subarray(c.data, c.dataEnd)));
   }
   if (end < b.length) {
     blocks.push({ kind: 'Data after image end', bytes: b.length - end, removable: true });
-    addSignals(signals, findSignals(toText(b.subarray(end))));
+    addSignals(signals, signalsIn(b.subarray(end)));
   }
   return { format: 'webp', signals, blocks };
 }
@@ -360,7 +367,7 @@ export function scanImage(b) {
     case 'jpeg': return scanJpeg(b);
     case 'png': return scanPng(b);
     case 'webp': return scanWebp(b);
-    default: return { format: 'other', signals: findSignals(toText(b)), blocks: [] };
+    default: return { format: 'other', signals: signalsIn(b), blocks: [] };
   }
 }
 

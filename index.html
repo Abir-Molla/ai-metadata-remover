@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>AI Metadata Remover: Remove Metadata from Images Free (No Upload) | Abir Molla</title>
+  <meta name="description" content="Free AI metadata remover. Remove C2PA, AI tags, prompts, EXIF and GPS data from JPG, PNG and WebP images in bulk. Runs in your browser, nothing is uploaded, no quality loss.">
+  <link rel="canonical" href="https://abir-molla.github.io/ai-metadata-remover/">
+  <meta name="theme-color" content="#0A1628">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="AI Metadata Remover: free, private, no upload">
+  <meta property="og:description" content="Remove C2PA, AI tags, prompts and EXIF data from images in bulk, right in your browser.">
+  <meta property="og:url" content="https://abir-molla.github.io/ai-metadata-remover/">
+  <meta property="og:image" content="https://abir-molla.github.io/ai-metadata-remover/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="assets/fonts/manrope-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/ibmplexsans-327998.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/css/app.css">
+  <script src="src/theme.js"></script>
+  <script type="module" src="src/app.js"></script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebApplication","name":"AI Metadata Remover","url":"https://abir-molla.github.io/ai-metadata-remover/","applicationCategory":"MultimediaApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"author":{"@type":"Person","name":"Abir Molla","url":"https://abirmolla.com"}}
+  </script>
+</head>
+<body>
+  <a class="skip" href="#tool">Skip to the tool</a>
+
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a class="brand" href="https://abirmolla.com" aria-label="Abir Molla, home">Abir Molla</a>
+      <button class="theme-toggle" type="button" id="theme-toggle" aria-label="Switch to dark mode">
+        <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero__inner">
+        <p class="eyebrow">FREE TOOL · RUNS IN YOUR BROWSER</p>
+        <h1><span class="accent">AI</span> Metadata Remover</h1>
+        <p class="hero__lead">Remove C2PA, AI tags, prompts, EXIF and GPS data from your images in bulk. Nothing is uploaded and the picture itself stays exactly the same.</p>
+        <ul class="hero__points">
+          <li>No upload</li>
+          <li>No quality loss</li>
+          <li>Bulk + ZIP download</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="tool" id="tool" aria-label="Metadata remover">
+      <div class="container">
+        <div class="card tool__card">
+          <label class="drop" id="drop" for="file-input">
+            <input id="file-input" type="file" accept="image/*,.heic,.heif,.avif" multiple>
+            <svg class="drop__icon" viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="9" width="36" height="30" rx="5"/><circle cx="17" cy="19" r="3.5"/><path d="m8 35 10-10 7 7 5-5 10 10"/></svg>
+            <span class="drop__title">Drop images here or <u>choose files</u></span>
+            <span class="drop__hint">JPG, PNG and WebP are cleaned with no quality loss. Other formats are saved as a fresh PNG or JPG.</span>
+          </label>
+
+          <div class="tool__options">
+            <label class="check"><input type="checkbox" id="rename"> Rename files to image-001, image-002…</label>
+            <span class="tool__private">Your images never leave this device.</span>
+          </div>
+
+          <div class="summary" id="summary" hidden>
+            <p class="summary__text" id="summary-text" aria-live="polite"></p>
+            <div class="summary__actions">
+              <button class="btn btn--primary" type="button" id="download-all">Download all (ZIP)</button>
+              <button class="btn btn--secondary" type="button" id="clear">Clear</button>
+            </div>
+          </div>
+
+          <ul class="results" id="results" aria-label="Your images"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section__head">
+          <p class="eyebrow">WHAT IT DOES</p>
+          <h2>Finds the hidden data, shows it, then removes it</h2>
+        </div>
+        <div class="grid">
+          <article class="card feature">
+            <h3>AI labels and prompts</h3>
+            <p>C2PA / Content Credentials, IPTC "made by AI" tags, and traces from ChatGPT / DALL-E, Midjourney, Adobe Firefly, Google Gemini, Stable Diffusion and ComfyUI prompts.</p>
+          </article>
+          <article class="card feature">
+            <h3>Camera and location data</h3>
+            <p>EXIF data such as GPS location, camera and phone model, serial numbers, editing software and dates. A proper EXIF remover for privacy, too.</p>
+          </article>
+          <article class="card feature">
+            <h3>Hidden extras</h3>
+            <p>XMP and IPTC blocks, comments, PNG text chunks, and data hidden after the end of the image.</p>
+          </article>
+          <article class="card feature feature--keep">
+            <h3>What stays</h3>
+            <p>The pixels, byte for byte. The colour profile, so colours look the same. The rotation, so photos stay the right way up.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--raised">
+      <div class="container faq">
+        <div class="section__head">
+          <p class="eyebrow">GOOD TO KNOW</p>
+          <h2>Questions</h2>
+        </div>
+        <details>
+          <summary>Are my images uploaded anywhere?</summary>
+          <p>No. Everything runs in your browser on your own device. The page is not even allowed to make network requests, and it keeps working offline once it has loaded.</p>
+        </details>
+        <details>
+          <summary>Does it change the quality of my images?</summary>
+          <p>No for JPG, PNG and WebP: the tool cuts out only the metadata and copies the image data unchanged. Other formats (HEIC, AVIF, GIF, BMP) are opened by your browser and saved as a new PNG or JPG, which also drops all metadata.</p>
+        </details>
+        <details>
+          <summary>Can it remove invisible AI watermarks like SynthID?</summary>
+          <p>No. Some AI tools hide a watermark inside the pixels themselves. That is not metadata, so no metadata remover can take it out. This tool removes the labels and data stored around the image.</p>
+        </details>
+        <details>
+          <summary>How do I know it worked?</summary>
+          <p>After cleaning, each file is scanned again. "Clean" means no AI signal and no removable metadata was found in the new file. Open "Details" to see exactly what was found and removed.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container site-footer__inner">
+      <a class="brand" href="https://abirmolla.com">Abir Molla</a>
+      <p>Made by Abir Molla. Free to use. <a href="https://github.com/Abir-Molla/ai-metadata-remover">Source on GitHub</a></p>
+      <p class="site-footer__copy">© 2026 Abir Molla</p>
+    </div>
+  </footer>
+</body>
+</html>

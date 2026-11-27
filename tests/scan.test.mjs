@@ -18,6 +18,11 @@ test('findSignals spots each AI source', () => {
   assert.deepEqual(labels('{"class_type":"KSampler"}'), ['ComfyUI']);
 });
 
+test('findSignals reads UTF-8 metadata decoded as latin1', () => {
+  const text = new TextDecoder('latin1').decode(new TextEncoder().encode('Made with DALL·E 3'));
+  assert.deepEqual(labels(text), ['OpenAI / ChatGPT / DALL-E']);
+});
+
 test('findSignals ignores normal camera metadata', () => {
   assert.deepEqual(findSignals('Canon EOS R5 Adobe Photoshop Lightroom Classic 13.1 sRGB IEC61966-2.1'), []);
 });
