@@ -120,26 +120,44 @@ function tiffReader(t) {
   return { r16, r32 };
 }
 
-/** Reads IFD0 of an EXIF payload ("Exif\0\0" + TIFF): {orientation, onlyOrientation}. */
-function readExif(payload) {
-  const t = payload.subarray(6);
-  const res = { orientation: 1, onlyOrientation: false };
-  if (t.length < 8) return res;
+const PRIVACY_ORDER = ['Camera / phone model', 'Date and time', 'GPS location'];
+
+/** Reads IFD0 of TIFF bytes: {orientation, onlyOrientation, privacy: string[]}. */
+function readTiff(t) {
+  const res = { orientation: 1, onlyOrientation: false, privacy: [] };
+  const order = t.length >= 8 && ((t[0] === 0x49 && t[1] === 0x49) || (t[0] === 0x4d && t[1] === 0x4d));
+  if (!order) return res;
   const { r16, r32 } = tiffReader(t);
   const ifd = r32(4);
   if (ifd + 2 > t.length) return res;
   const n = r16(ifd);
+  const found = new Set();
   for (let k = 0; k < n; k++) {
     const e = ifd + 2 + k * 12;
     if (e + 12 > t.length) break;
-    if (r16(e) === 0x0112) {
+    const tag = r16(e);
+    if (tag === 0x0112) {
       const v = r16(e + 8);
       if (v >= 1 && v <= 8) res.orientation = v;
+    } else if (tag === 0x010f || tag === 0x0110) found.add('Camera / phone model');
+    else if (tag === 0x0132) found.add('Date and time');
+    else if (tag === 0x8825) {
+      const gps = r32(e + 8);
+      if (gps + 2 <= t.length && r16(gps) > 0) found.add('GPS location');
     }
   }
+  res.privacy = PRIVACY_ORDER.filter((x) => found.has(x));
   const nextAt = ifd + 2 + n * 12;
   res.onlyOrientation = n === 1 && r16(ifd + 2) === 0x0112 && nextAt + 4 <= t.length && r32(nextAt) === 0;
   return res;
+}
+
+/** EXIF payload with or without the "Exif" prefix. */
+const readExif = (payload) => readTiff(startsWith(payload, 0, 'Exif\0') ? payload.subarray(6) : payload);
+
+function addPrivacy(list, more) {
+  for (const x of more) if (!list.includes(x)) list.push(x);
+  list.sort((a, b) => PRIVACY_ORDER.indexOf(a) - PRIVACY_ORDER.indexOf(b));
 }
 
 /** A minimal EXIF segment holding only the Orientation tag. */
@@ -184,17 +202,19 @@ function scanJpeg(b) {
   const { parts, end } = parseJpeg(b);
   const blocks = [];
   const signals = [];
+  const privacy = [];
   for (const part of parts) {
     const c = classifyJpeg(b, part);
     if (!c) continue;
     blocks.push({ kind: c.kind, bytes: part.end - part.start, removable: c.removable });
     if (c.removable) addSignals(signals, signalsIn(b.subarray(part.payload, part.end)));
+    if (c.kind === 'EXIF') addPrivacy(privacy, readExif(b.subarray(part.payload, part.end)).privacy);
   }
   if (end < b.length) {
     blocks.push({ kind: 'Data after image end', bytes: b.length - end, removable: true });
     addSignals(signals, signalsIn(b.subarray(end)));
   }
-  return { format: 'jpeg', signals, blocks };
+  return { format: 'jpeg', signals, blocks, privacy };
 }
 
 function cleanJpeg(b) {
@@ -268,6 +288,7 @@ function scanPng(b) {
   const { chunks, end } = parsePng(b);
   const blocks = [];
   const signals = [];
+  const privacy = [];
   for (const c of chunks) {
     const cl = classifyPng(b, c);
     if (!cl.removable) {
@@ -276,6 +297,7 @@ function scanPng(b) {
     }
     blocks.push({ kind: cl.kind, bytes: c.end - c.start, removable: true });
     addSignals(signals, signalsIn(b.subarray(c.data, c.dataEnd)));
+    if (c.type === 'eXIf') addPrivacy(privacy, readExif(b.subarray(c.data, c.dataEnd)).privacy);
     // Compressed text hides the prompt, but the keyword alone gives these tools away.
     if (cl.key === 'parameters') addSignals(signals, [{ label: 'Stable Diffusion', evidence: 'PNG text named "parameters"' }]);
     if (cl.key === 'prompt' || cl.key === 'workflow') addSignals(signals, [{ label: 'ComfyUI', evidence: `PNG text named "${cl.key}"` }]);
@@ -284,7 +306,7 @@ function scanPng(b) {
     blocks.push({ kind: 'Data after image end', bytes: b.length - end, removable: true });
     addSignals(signals, signalsIn(b.subarray(end)));
   }
-  return { format: 'png', signals, blocks };
+  return { format: 'png', signals, blocks, privacy };
 }
 
 function cleanPng(b) {
@@ -331,16 +353,18 @@ function scanWebp(b) {
   const { chunks, end } = parseWebp(b);
   const blocks = [];
   const signals = [];
+  const privacy = [];
   for (const c of chunks) {
     const cl = classifyWebp(c);
     if (cl.removable || c.type === 'ICCP') blocks.push({ kind: cl.kind, bytes: c.end - c.start, removable: cl.removable });
     if (cl.removable) addSignals(signals, signalsIn(b.subarray(c.data, c.dataEnd)));
+    if (c.type === 'EXIF') addPrivacy(privacy, readExif(b.subarray(c.data, c.dataEnd)).privacy);
   }
   if (end < b.length) {
     blocks.push({ kind: 'Data after image end', bytes: b.length - end, removable: true });
     addSignals(signals, signalsIn(b.subarray(end)));
   }
-  return { format: 'webp', signals, blocks };
+  return { format: 'webp', signals, blocks, privacy };
 }
 
 function cleanWebp(b) {
@@ -361,13 +385,13 @@ function cleanWebp(b) {
 
 /* ---------------- public API ---------------- */
 
-/** Scan an image: {format, signals: {label, evidence}[], blocks: {kind, bytes, removable}[]}. */
+/** Scan an image: {format, signals: {label, evidence}[], blocks: {kind, bytes, removable}[], privacy: string[]}. */
 export function scanImage(b) {
   switch (detectFormat(b)) {
     case 'jpeg': return scanJpeg(b);
     case 'png': return scanPng(b);
     case 'webp': return scanWebp(b);
-    default: return { format: 'other', signals: signalsIn(b), blocks: [] };
+    default: return { format: 'other', signals: signalsIn(b), blocks: [], privacy: [] };
   }
 }
 

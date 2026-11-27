@@ -1,7 +1,8 @@
-// UI: add files, clean them one by one, show what was found, download.
+// UI: add files, clean (and optionally resize or convert) them one by one, show what was found, download.
 import { scanImage, cleanImage, isClean, detectFormat } from './core.js';
 import { createZip } from './zip.js';
 import { outputNames } from './names.js';
+import { fitSize, planOutput } from './convert.js';
 
 const $ = (id) => document.getElementById(id);
 const results = $('results');
@@ -11,7 +12,6 @@ let queue = Promise.resolve();
 const EXT = { jpeg: 'jpg', png: 'png', webp: 'webp' };
 const MIME = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 const LABEL = { jpeg: 'JPG', png: 'PNG', webp: 'WebP' };
-const REENCODE_AS_JPEG = /^(heic|heif|avif|jpe?g|tiff?)$/;
 
 function el(tag, className, text) {
   const n = document.createElement(tag);
@@ -32,52 +32,105 @@ function isImageFile(f) {
   return f.type.startsWith('image/') || ['heic', 'heif', 'avif', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff'].includes(extOf(f.name));
 }
 
-/** Formats we cannot cut losslessly: let the browser decode them and save a fresh file. */
-async function reencode(file) {
+/* ---------- output settings ---------- */
+const fmtSel = $('out-format');
+const sizeSel = $('out-size');
+const customInput = $('out-size-custom');
+const qualityInput = $('out-quality');
+
+function getSettings() {
+  let max = sizeSel.value === 'custom' ? parseInt(customInput.value, 10) : parseInt(sizeSel.value, 10);
+  if (!Number.isFinite(max) || max < 16) max = 0;
+  return { format: fmtSel.value, max: Math.min(max, 16384), quality: parseInt(qualityInput.value, 10) / 100 };
+}
+
+function syncSettingsUi() {
+  const s = getSettings();
+  $('custom-field').hidden = sizeSel.value !== 'custom';
+  $('quality-value').textContent = `${qualityInput.value}%`;
+  qualityInput.disabled = s.format === 'png' || (s.format === 'original' && !s.max);
+  $('settings-note').textContent = s.format === 'original' && !s.max
+    ? 'JPG, PNG and WebP keep every pixel. Only the metadata is removed.'
+    : 'Images will be re-saved with your settings. This also removes all metadata, and colours are saved as standard sRGB.';
+}
+
+function saveSettings() {
+  try { localStorage.setItem('output', JSON.stringify({ f: fmtSel.value, s: sizeSel.value, c: customInput.value, q: qualityInput.value })); } catch { /* ignore */ }
+}
+
+function loadSettings() {
+  try {
+    const o = JSON.parse(localStorage.getItem('output') || 'null');
+    if (!o) return;
+    if ([...fmtSel.options].some((x) => x.value === o.f)) fmtSel.value = o.f;
+    if ([...sizeSel.options].some((x) => x.value === o.s)) sizeSel.value = o.s;
+    if (o.c) customInput.value = o.c;
+    if (o.q) qualityInput.value = o.q;
+  } catch { /* ignore */ }
+}
+
+/** Decode with the browser (rotation applied), resize, and save as `type`. */
+async function render(file, { type, quality, max }) {
   let bitmap;
   try {
     bitmap = await createImageBitmap(file);
   } catch {
     throw new Error("This browser can't open this file type. For HEIC try Safari, or convert it to JPG first.");
   }
-  const asJpeg = REENCODE_AS_JPEG.test(extOf(file.name)) || /heic|heif|avif|tiff/i.test(file.type);
+  const src = { width: bitmap.width, height: bitmap.height };
+  const size = fitSize(src.width, src.height, max);
   const canvas = el('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
+  canvas.width = size.width;
+  canvas.height = size.height;
   const ctx = canvas.getContext('2d');
-  if (asJpeg) { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
-  ctx.drawImage(bitmap, 0, 0);
+  ctx.imageSmoothingQuality = 'high';
+  if (type === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size.width, size.height); }
+  ctx.drawImage(bitmap, 0, 0, size.width, size.height);
   bitmap.close();
   const blob = await new Promise((resolve, reject) => canvas.toBlob(
-    (b) => (b ? resolve(b) : reject(new Error('Could not save the image.'))),
-    asJpeg ? 'image/jpeg' : 'image/png', 0.95,
+    (b) => (b ? resolve(b) : reject(new Error('Could not save the image. It may be too large for this browser.'))),
+    type, quality,
   ));
-  return new Uint8Array(await blob.arrayBuffer());
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), src, size };
 }
 
-async function processItem(item) {
+async function processItem(item, gen) {
+  if (gen !== item.gen) return; // cleared or settings changed before this run started
+  const s = getSettings();
+  const result = {};
   try {
     const input = new Uint8Array(await item.file.arrayBuffer());
-    item.before = scanImage(input);
+    result.before = scanImage(input);
+    const plan = planOutput(s, result.before.format, item.file.name);
     let out;
-    if (item.before.format === 'other') {
-      out = cleanImage(await reencode(item.file)).bytes;
-      item.removed = ['All metadata (saved as a new image)'];
-      item.reencoded = true;
+    if (plan.lossless) {
+      ({ bytes: out, removed: result.removed } = cleanImage(input));
     } else {
-      ({ bytes: out, removed: item.removed } = cleanImage(input));
+      const r = await render(item.file, { type: plan.type, quality: plan.quality, max: s.max });
+      out = cleanImage(r.bytes).bytes;
+      result.removed = ['All metadata (saved as a new image)'];
+      result.changes = [];
+      if (r.size.width !== r.src.width || r.size.height !== r.src.height) {
+        result.changes.push(`Resized from ${r.src.width}×${r.src.height} to ${r.size.width}×${r.size.height}`);
+      }
+      result.dims = `${r.size.width}×${r.size.height}`;
+      const srcLabel = LABEL[result.before.format] || extOf(item.file.name).toUpperCase() || 'image';
+      const outLabel = LABEL[detectFormat(out)];
+      if (srcLabel !== outLabel) result.changes.push(`Converted from ${srcLabel} to ${outLabel}`);
+      if (plan.type !== MIME[detectFormat(out)]) result.changes.push(`This browser cannot save ${LABEL[s.format] || 'that format'}, so it was saved as ${outLabel}`);
+      if (plan.quality && outLabel !== 'PNG') result.changes.push(`Quality ${Math.round(plan.quality * 100)}%`);
     }
     const format = detectFormat(out);
-    item.after = scanImage(out);
-    item.out = out;
-    item.ext = EXT[format];
-    item.mime = MIME[format];
-    item.formatLabel = LABEL[format];
-    item.url = URL.createObjectURL(new Blob([out], { type: item.mime }));
+    Object.assign(result, {
+      after: scanImage(out), out, ext: EXT[format], mime: MIME[format], formatLabel: LABEL[format],
+      reencoded: !plan.lossless,
+    });
   } catch (e) {
-    item.error = e instanceof Error && e.message ? e.message : 'Something went wrong with this file.';
+    result.error = e instanceof Error && e.message ? e.message : 'Something went wrong with this file.';
   }
-  item.done = true;
+  if (gen !== item.gen) return; // settings changed meanwhile; a newer run is queued
+  if (result.out) result.url = URL.createObjectURL(new Blob([result.out], { type: result.mime }));
+  Object.assign(item, result, { done: true });
   renderRow(item);
   updateSummary();
 }
@@ -116,13 +169,15 @@ function renderRow(item) {
     main.append(chips, el('p', 'row__error', item.error));
   } else {
     const { before, after } = item;
-    main.append(el('div', 'row__meta', `${formatSize(item.file.size)} → ${formatSize(item.out.length)} · ${item.formatLabel}`));
+    const meta = [`${formatSize(item.file.size)} → ${formatSize(item.out.length)}`, item.formatLabel, item.dims].filter(Boolean).join(' · ');
+    main.append(el('div', 'row__meta', meta));
     if (before.signals.length) {
       const n = before.signals.length;
       chips.append(el('span', 'chip chip--danger', `${n} AI signal${n > 1 ? 's' : ''} found`));
     } else {
       chips.append(el('span', 'chip', item.removed.length ? 'No AI signals' : 'No metadata found'));
     }
+    if (before.privacy.includes('GPS location')) chips.append(el('span', 'chip chip--danger', 'GPS location found'));
     chips.append(isClean(after) ? el('span', 'chip chip--success', '✓ Clean') : el('span', 'chip chip--danger', 'Check failed'));
     main.append(chips);
 
@@ -130,8 +185,11 @@ function renderRow(item) {
     details.append(el('summary', null, 'Details'));
     const found = el('div', 'found');
     if (before.signals.length) found.append(listSection('AI signals found', before.signals.map((s) => [s.label, s.evidence])));
+    if (before.privacy.length) found.append(listSection('Private data found', before.privacy.map((k) => [k])));
     found.append(listSection('Removed', item.removed.length ? item.removed.map((k) => [k]) : [['Nothing to remove']]));
-    if (!item.reencoded) {
+    if (item.reencoded) {
+      if (item.changes.length) found.append(listSection('Changes', item.changes.map((k) => [k])));
+    } else {
       const kept = [...new Set(after.blocks.filter((b) => !b.removable).map((b) => b.kind))].filter((k) => k !== 'JFIF header');
       found.append(listSection('Kept', [['Image data, unchanged'], ...kept.map((k) => [k])]));
     }
@@ -152,7 +210,7 @@ function renderRow(item) {
 }
 
 function ready() {
-  return items.filter((i) => i.out);
+  return items.filter((i) => i.done && i.out);
 }
 
 /** Map item -> output name, based on the rename option and the current order. */
@@ -181,12 +239,27 @@ function updateSummary() {
   const ok = ready();
   const withAi = ok.filter((i) => i.before.signals.length).length;
   const failed = items.filter((i) => i.error).length;
+  const saved = ok.reduce((n, i) => n + i.file.size - i.out.length, 0);
   const text = busy
-    ? `Cleaning ${total - busy + 1} of ${total}…`
-    : [`${total} file${total > 1 ? 's' : ''}`, `${withAi} with AI signals`, `${ok.filter((i) => isClean(i.after)).length} clean`, failed ? `${failed} failed` : '']
-      .filter(Boolean).join(' · ');
+    ? `Working on ${total - busy + 1} of ${total}…`
+    : [
+      `${total} file${total > 1 ? 's' : ''}`,
+      `${withAi} with AI signals`,
+      `${ok.filter((i) => isClean(i.after)).length} clean`,
+      failed ? `${failed} failed` : '',
+      saved > 1024 ? `${formatSize(saved)} smaller` : '',
+    ].filter(Boolean).join(' · ');
   $('summary-text').textContent = text;
   $('download-all').disabled = busy > 0 || ok.length === 0;
+}
+
+function queueItem(item) {
+  item.gen = (item.gen || 0) + 1;
+  if (item.url) URL.revokeObjectURL(item.url);
+  Object.assign(item, { done: false, error: null, out: null, url: null, dims: null, changes: null });
+  renderRow(item);
+  const gen = item.gen;
+  queue = queue.then(() => processItem(item, gen));
 }
 
 function addFiles(fileList) {
@@ -197,14 +270,18 @@ function addFiles(fileList) {
     items.push(item);
     results.append(item.row);
     if (!isImageFile(file)) {
-      item.error = 'This is not an image file.';
-      item.done = true;
+      Object.assign(item, { error: 'This is not an image file.', done: true });
       renderRow(item);
       continue;
     }
-    renderRow(item);
-    queue = queue.then(() => processItem(item));
+    queueItem(item);
   }
+  updateSummary();
+}
+
+/** Settings changed: run every image again with the new settings. */
+function reprocessAll() {
+  for (const item of items) if (isImageFile(item.file)) queueItem(item);
   updateSummary();
 }
 
@@ -227,15 +304,24 @@ window.addEventListener('paste', (e) => {
   if (e.clipboardData?.files.length) addFiles(e.clipboardData.files);
 });
 
+for (const control of [fmtSel, sizeSel, customInput, qualityInput]) {
+  control.addEventListener('change', () => { syncSettingsUi(); saveSettings(); reprocessAll(); });
+}
+qualityInput.addEventListener('input', () => { $('quality-value').textContent = `${qualityInput.value}%`; });
+loadSettings();
+syncSettingsUi();
+
 $('download-all').addEventListener('click', () => {
   const names = currentNames();
   const zip = createZip(ready().map((i) => ({ name: names.get(i), data: i.out })));
   save(zip, 'images-metadata-removed.zip', 'application/zip');
 });
 
-$('clear').addEventListener('click', async () => {
-  await queue;
-  for (const i of items) if (i.url) URL.revokeObjectURL(i.url);
+$('clear').addEventListener('click', () => {
+  for (const i of items) {
+    i.gen = (i.gen || 0) + 1; // drop any run still in the queue
+    if (i.url) URL.revokeObjectURL(i.url);
+  }
   items.length = 0;
   results.replaceChildren();
   updateSummary();

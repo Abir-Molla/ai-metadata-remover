@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>AI Metadata Remover: Remove Metadata from Images Free (No Upload) | Abir Molla</title>
-  <meta name="description" content="Free AI metadata remover. Remove C2PA, AI tags, prompts, EXIF and GPS data from JPG, PNG and WebP images in bulk. Runs in your browser, nothing is uploaded, no quality loss.">
+  <meta name="description" content="Free AI metadata remover. Remove C2PA, AI tags, prompts, EXIF and GPS data from JPG, PNG and WebP images in bulk, and resize or convert them too. Runs in your browser, nothing is uploaded.">
   <link rel="canonical" href="https://abir-molla.github.io/ai-metadata-remover/">
   <meta name="theme-color" content="#0A1628">
   <meta property="og:type" content="website">
@@ -42,11 +42,12 @@
       <div class="container hero__inner">
         <p class="eyebrow">FREE TOOL · RUNS IN YOUR BROWSER</p>
         <h1><span class="accent">AI</span> Metadata Remover</h1>
-        <p class="hero__lead">Remove C2PA, AI tags, prompts, EXIF and GPS data from your images in bulk. Nothing is uploaded and the picture itself stays exactly the same.</p>
+        <p class="hero__lead">Remove C2PA, AI tags, prompts, EXIF and GPS data from your images in bulk, and resize or convert them if you need to. Nothing is uploaded.</p>
         <ul class="hero__points">
           <li>No upload</li>
           <li>No quality loss</li>
           <li>Bulk + ZIP download</li>
+          <li>Resize + convert</li>
         </ul>
       </div>
     </section>
@@ -58,8 +59,43 @@
             <input id="file-input" type="file" accept="image/*,.heic,.heif,.avif" multiple>
             <svg class="drop__icon" viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="9" width="36" height="30" rx="5"/><circle cx="17" cy="19" r="3.5"/><path d="m8 35 10-10 7 7 5-5 10 10"/></svg>
             <span class="drop__title">Drop images here or <u>choose files</u></span>
-            <span class="drop__hint">JPG, PNG and WebP are cleaned with no quality loss. Other formats are saved as a fresh PNG or JPG.</span>
+            <span class="drop__hint">JPG, PNG, WebP, HEIC, AVIF, GIF and more. You can also paste an image with Ctrl+V or ⌘V.</span>
           </label>
+
+          <fieldset class="settings">
+            <legend class="settings__legend">Output</legend>
+            <div class="field">
+              <label for="out-format">Format</label>
+              <select id="out-format">
+                <option value="original">Same as original</option>
+                <option value="jpeg">JPG</option>
+                <option value="png">PNG</option>
+                <option value="webp">WebP</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="out-size">Resize</label>
+              <select id="out-size">
+                <option value="0">Original size</option>
+                <option value="3840">Max 3840 px (4K)</option>
+                <option value="2560">Max 2560 px</option>
+                <option value="1920">Max 1920 px (Full HD)</option>
+                <option value="1280">Max 1280 px</option>
+                <option value="1080">Max 1080 px (Instagram)</option>
+                <option value="800">Max 800 px</option>
+                <option value="custom">Custom size…</option>
+              </select>
+            </div>
+            <div class="field" id="custom-field" hidden>
+              <label for="out-size-custom">Longest side (px)</label>
+              <input id="out-size-custom" type="number" min="16" max="16384" step="1" value="1600" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label for="out-quality">Quality <output id="quality-value" for="out-quality">85%</output></label>
+              <input id="out-quality" type="range" min="40" max="100" step="5" value="85">
+            </div>
+            <p class="settings__note" id="settings-note"></p>
+          </fieldset>
 
           <div class="tool__options">
             <label class="check"><input type="checkbox" id="rename"> Rename to image-001, image-002…</label>
@@ -91,12 +127,12 @@
             <p>C2PA / Content Credentials, IPTC "made by AI" tags, and traces from ChatGPT / DALL-E, Midjourney, Adobe Firefly, Google Gemini, Stable Diffusion and ComfyUI prompts.</p>
           </article>
           <article class="card feature">
-            <h3>Camera and location data</h3>
-            <p>EXIF data such as GPS location, camera and phone model, serial numbers, editing software and dates. A proper EXIF remover for privacy, too.</p>
+            <h3>Location and hidden data</h3>
+            <p>EXIF data such as GPS location, phone model and dates, plus XMP and IPTC blocks, comments and data hidden after the end of the image. It warns you when a photo shows where it was taken.</p>
           </article>
           <article class="card feature">
-            <h3>Hidden extras</h3>
-            <p>XMP and IPTC blocks, comments, PNG text chunks, and data hidden after the end of the image.</p>
+            <h3>Resize and convert</h3>
+            <p>Need a smaller file too? Resize to Full HD, Instagram or any size, and convert between JPG, PNG and WebP with your own quality setting.</p>
           </article>
           <article class="card feature feature--keep">
             <h3>What stays</h3>
@@ -114,11 +150,15 @@
         </div>
         <details>
           <summary>Are my images uploaded anywhere?</summary>
-          <p>No. Everything runs in your browser on your own device. The page is not even allowed to make network requests, and it keeps working offline once it has loaded.</p>
+          <p>No. Everything runs in your browser on your own device. The page is not even allowed to make network requests, so your images stay with you even if you lose your connection while using it.</p>
         </details>
         <details>
           <summary>Does it change the quality of my images?</summary>
-          <p>No for JPG, PNG and WebP: the tool cuts out only the metadata and copies the image data unchanged. Other formats (HEIC, AVIF, GIF, BMP) are opened by your browser and saved as a new PNG or JPG, which also drops all metadata.</p>
+          <p>Not with the default "Same as original" and "Original size" settings: for JPG, PNG and WebP the tool cuts out only the metadata and copies the image data unchanged. Other formats (HEIC, AVIF, GIF, BMP) are opened by your browser and saved as a new JPG or PNG, which also drops all metadata.</p>
+        </details>
+        <details>
+          <summary>Can I resize or convert images at the same time?</summary>
+          <p>Yes. Under "Output", pick a format (JPG, PNG or WebP), a size and a quality. The images you already added are processed again with the new settings. Resized or converted images are saved fresh, so they never carry the old metadata.</p>
         </details>
         <details>
           <summary>Can it remove invisible AI watermarks like SynthID?</summary>
